@@ -47,5 +47,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>음성 번역을 위해 음성인식 권한이 필요해요.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>음성 인식을 위해 마이크 권한이 필요해요.</string>
 </dict>
 </plist>

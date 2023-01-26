@@ -28,7 +28,11 @@ environment:
 # dependencies can be manually updated by changing the version numbers below to
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
+
+  # Functionalities
 dependencies:
+  google_cloud_translation: ^0.0.3
+  speech_to_text: ^6.1.1
   flutter:
     sdk: flutter
 
