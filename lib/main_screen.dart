@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'package:dropdown_button2/custom_dropdown_button2.dart';
 import 'package:flutter/material.dart';
-import 'package:google_cloud_translation/google_cloud_translation.dart';
+import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-
-
+import 'package:http/http.dart' as http;
+import 'apikeys.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:flutter/material.dart';
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
 
@@ -11,25 +15,32 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
-  late Translation _translation;
+class _MainScreenState extends State<MainScreen> {
 
-  TranslationModel _translated = TranslationModel(
-      translatedText: 'en', detectedSourceLanguage: 'en');
-  TranslationModel _detected = TranslationModel(
-      translatedText: 'ru', detectedSourceLanguage: 'ru');
-
-  //audio button
-  late AnimationController _animationController;
-  late Animation<Color?> _animateColor;
-  late Animation<double> _animateIcon;
-  Curve _curve = Curves.easeOut;
   late Size screenSize;
+  //Translate
 
-  //audio recognition
+  String _coachingLevel = 'Education Level';
+
+  //SpeechToText
   SpeechToText _speechToText = SpeechToText();
   bool _speechEnabled = false;
   String _lastWords = '';
+  String _lastTranslatedWords = '';
+
+  //dropdown menu
+  final List<String> items = [
+    'Item1',
+    'Item2',
+    'Item3',
+    'Item4',
+    'Item5',
+    'Item6',
+    'Item7',
+    'Item8',
+  ];
+  String? selectedValue;
+  final TextEditingController textEditingController = TextEditingController();
 
   /// This has to happen only once per app
   void _initSpeech() async {
@@ -50,7 +61,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   void _stopListening() async {
     await _speechToText.stop();
     setState(() {
-      _textTranslate(_lastWords);
+      _textTranslate(context, _lastWords);
       print("stop listening");
     });
   }
@@ -63,32 +74,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     });
   }
 
+  void _textTranslate(BuildContext context, String str) async
+  {
+    String translatedStr = await _translate(_lastWords, "ko", "en");
+    _lastTranslatedWords = translatedStr;
+  }
+
 
   @override
   void initState() {
-    _translation = Translation(
-      apiKey: 'AIzaSyCAPrLH8rFGJLoumRMZXUqQYAK7Q142t9E',
-    );
-
-    _animationController =
-    AnimationController(vsync: this, duration: Duration(milliseconds: 500))
-      ..addListener(() {
-        setState(() {});
-      });
-    _animateIcon =
-        Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
-    _animateColor = ColorTween(
-      begin: Colors.blue,
-      end: Colors.red,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Interval(
-        0.00,
-        1.00,
-        curve: _curve,
-      ),
-    ));
-
     _initSpeech();
     super.initState();
   }
@@ -96,11 +90,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   @override
   void dispose() {
     // TODO: implement dispose
-    _animationController.dispose();
+    textEditingController.dispose();
     super.dispose();
   }
   @override
   Widget build(BuildContext context) {
+
     screenSize = MediaQuery
         .of(context)
         .size;
@@ -108,14 +103,17 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       appBar: AppBar(
         title: Text('TRANSLATE'),
       ),
-      body: Column(
+      body: Stack(
         children: [
-
-          _translateFrame_before(),
-          _divider(screenSize.width, 1, 0, 0),
-          _translateFrame_after(),
-          _divider(screenSize.width, 1, 0, 0),
-          _descriptionFrame(),
+          Column(
+            children: [
+              _divider(screenSize.width, 1, 0, 0),
+              _translateFrame_before(),
+              _divider(screenSize.width, 1, 0, 0),
+              _translateFrame_after(),
+              _divider(screenSize.width, 1, 0, 0),
+            ],
+          ),
         ],
       ),
       floatingActionButton: audioButton(),
@@ -126,28 +124,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   ElevatedButton _translateBtn() {
     return ElevatedButton(
             onPressed: () {
-              _textTranslate(_lastWords);
+              _textTranslate(context, _lastWords);
             },
 
-            child: Text("TRANSLATE")
+            child: Text("번역")
         );
   }
 
-  Widget _descriptionFrame()
-  {
-    return Positioned(
-        bottom: 100,
-        child: Column(
-          children: [
-            Text('Detected language - ${_translated.detectedSourceLanguage}',
-                style: TextStyle(color: Colors.black26, )),
-            Text('Language detected with detectLang - ${_detected.detectedSourceLanguage}',
-                style: TextStyle(color: Colors.black26)
-            )
-          ],
-        )
-    );
-  }
 
   Widget _translateFrame_before()
   {
@@ -169,18 +152,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       child: SizedBox(
         width: screenSize.width,
         height: screenSize.height/4,
-        child: Text(_translated.translatedText,
+        child: Text('$_lastTranslatedWords',
           style: TextStyle(color: Colors.black, fontSize: 20),
           textAlign: TextAlign.start,
         ),
       ),
     );
-  }
-  _textTranslate(String str) async
-  {
-    _translated = await _translation.translate(text: str, to: 'en');
-    _detected = await _translation.detectLang(text: str);
-    setState(() {});
   }
 
   Widget audioButton() {
@@ -215,5 +192,83 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   Widget _speechDescText() {
     return Text( _speechToText.isListening ? 'Tap the microphone to start listening...' : '', style: TextStyle(color: Colors.redAccent),);
   }
+
+
+  //TRANSLATIONS
+  Future<dynamic> getUsedLanguage(String content) async {
+    String _client_id = apiKey;
+    String _client_secret = apiSecret;
+    String _content_type = "application/x-www-form-urlencoded; charset=UTF-8";
+    String _url = "https://openapi.naver.com/v1/papago/detectLangs";
+
+    http.Response lan = await http.post(Uri.parse(_url), headers: {
+      // 'query': text,
+      'Content-Type': _content_type,
+      'X-Naver-Client-Id': _client_id,
+      'X-Naver-Client-Secret': _client_secret
+    }, body: {
+      'query': content
+    });
+    if (lan.statusCode == 200) {
+      var dataJson = jsonDecode(lan.body);
+      //만약 성공적으로 언어를 받아왔다면 language 변수에 언어가 저장됩니다. (ex: eu, ko, etc..)
+      var language = dataJson['langCode'];
+      return language;
+    } else {
+      print(lan.statusCode);
+      throw("언어감지 실패");
+    }
+  }
+
+  Future<String> _translate(String content, String sourceCode, String targetCode) async {
+    String _client_id = apiKey;
+    String _client_secret = apiSecret;
+    String _content_type = "application/x-www-form-urlencoded; charset=UTF-8";
+    String _url = "https://openapi.naver.com/v1/papago/n2mt";
+
+    http.Response trans = await http.post(
+      Uri.parse(_url),
+      headers: {
+        'Content-Type': _content_type,
+        'X-Naver-Client-Id': _client_id,
+        'X-Naver-Client-Secret': _client_secret
+      },
+      body: {
+        'source': sourceCode,//위에서 언어 판별 함수에서 사용한 language 변수
+        'target': targetCode,//원하는 언어를 선택할 수 있다.
+        'text': content,
+      },
+    );
+    if (trans.statusCode == 200) {
+      var dataJson = jsonDecode(trans.body);
+      String result_papago = dataJson['message']['result']['translatedText'];
+      print(result_papago);
+      return result_papago;
+    }
+    else {
+      print('error ${trans.statusCode}');
+      return 'error ${trans.statusCode}';
+    }
+  }
+
+  Widget _dropDownMenu()
+  {
+    return Scaffold(
+      body: Center(
+        child: CustomDropdownButton2(
+          hint: 'Select Item',
+          dropdownItems: items,
+          value: selectedValue,
+          onChanged: (value) {
+            setState(() {
+              selectedValue = value;
+            });
+          },
+        ),
+      ),
+    );
+  }
 }
+
+
 
