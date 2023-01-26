@@ -5,9 +5,14 @@ import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
+import 'package:translate/language_data.dart';
 import 'apikeys.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
+
+import 'language_items.dart';
+
+
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
 
@@ -29,17 +34,8 @@ class _MainScreenState extends State<MainScreen> {
   String _lastTranslatedWords = '';
 
   //dropdown menu
-  final List<String> items = [
-    'Item1',
-    'Item2',
-    'Item3',
-    'Item4',
-    'Item5',
-    'Item6',
-    'Item7',
-    'Item8',
-  ];
-  String? selectedValue;
+  String? selectedValue_before;
+  String? selectedValue_after;
   final TextEditingController textEditingController = TextEditingController();
 
   /// This has to happen only once per app
@@ -51,7 +47,10 @@ class _MainScreenState extends State<MainScreen> {
   /// Each time to start a speech recognition session
   void _startListening() async {
     await _speechToText.listen(onResult: _onSpeechResult);
-    setState(() {});
+    _lastWords = '';
+    _lastTranslatedWords = '';
+    setState(() {
+    });
   }
 
   /// Manually stop the active speech recognition session
@@ -61,22 +60,29 @@ class _MainScreenState extends State<MainScreen> {
   void _stopListening() async {
     await _speechToText.stop();
     setState(() {
-      _textTranslate(context, _lastWords);
       print("stop listening");
     });
   }
 
   /// This is the callback that the SpeechToText plugin calls when
   /// the platform returns recognized words.
-  void _onSpeechResult(SpeechRecognitionResult result) {
+  void _onSpeechResult(SpeechRecognitionResult result) async{
+    _lastWords = result.recognizedWords;
+    await _textTranslate(context, _lastWords);
     setState(() {
-      _lastWords = result.recognizedWords;
     });
   }
 
-  void _textTranslate(BuildContext context, String str) async
+  Future<void> _textTranslate(BuildContext context, String str) async
   {
-    String translatedStr = await _translate(_lastWords, "ko", "en");
+    LanguageItems languageItems = LanguageItems();
+    LanguageData? languageDataSourceBefore = languageItems.getLanguageData(selectedValue_before!);
+    LanguageData? languageDataSourceAfter = languageItems.getLanguageData(selectedValue_after!);
+    if(languageDataSourceBefore == null || languageDataSourceAfter == null)
+    {
+      throw("도착 언어가 선택되지 않음");
+    }
+    String translatedStr = await _translate(_lastWords, languageDataSourceBefore.languageCode , languageDataSourceAfter.languageCode);
     _lastTranslatedWords = translatedStr;
   }
 
@@ -99,22 +105,32 @@ class _MainScreenState extends State<MainScreen> {
     screenSize = MediaQuery
         .of(context)
         .size;
+    LanguageItems languageItems =LanguageItems();
+    List<String> languageNames = languageItems.getLanguageNames();
     return Scaffold(
       appBar: AppBar(
         title: Text('TRANSLATE'),
       ),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              _divider(screenSize.width, 1, 0, 0),
-              _translateFrame_before(),
-              _divider(screenSize.width, 1, 0, 0),
-              _translateFrame_after(),
-              _divider(screenSize.width, 1, 0, 0),
-            ],
-          ),
-        ],
+      body: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _dropDownMenu_before(languageNames),
+                Icon(Icons.switch_right_rounded),
+                _dropDownMenu_after(languageNames),
+              ]
+            ),
+            Column(
+              children: [
+                _divider(screenSize.width, 1, 0, 0),
+                _translateFrame_before(),
+                _divider(screenSize.width, 1, 0, 0),
+                _translateFrame_after(),
+                _divider(screenSize.width, 1, 0, 0),
+              ],
+            ),
+          ]
       ),
       floatingActionButton: audioButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -247,27 +263,38 @@ class _MainScreenState extends State<MainScreen> {
     }
     else {
       print('error ${trans.statusCode}');
-      return 'error ${trans.statusCode}';
+      return '';
     }
   }
 
-  Widget _dropDownMenu()
+  Widget _dropDownMenu_before(List<String> items)
   {
-    return Scaffold(
-      body: Center(
-        child: CustomDropdownButton2(
-          hint: 'Select Item',
-          dropdownItems: items,
-          value: selectedValue,
-          onChanged: (value) {
-            setState(() {
-              selectedValue = value;
-            });
-          },
-        ),
-      ),
+
+    return CustomDropdownButton2(
+      hint: '출발 언어 선택',
+      dropdownItems: items,
+      value: selectedValue_before,
+      onChanged: (value) {
+        setState(() {
+          selectedValue_before = value;
+        });
+      },
     );
   }
+  Widget _dropDownMenu_after(List<String> items)
+  {
+    return CustomDropdownButton2(
+      hint: '도착 언어 선택',
+      dropdownItems: items,
+      value: selectedValue_after,
+      onChanged: (value) {
+        setState(() {
+          selectedValue_after = value;
+        });
+      },
+    );
+  }
+
 }
 
 
