@@ -15,9 +15,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   late Translation _translation;
 
   TranslationModel _translated = TranslationModel(
-      translatedText: '', detectedSourceLanguage: '');
+      translatedText: 'en', detectedSourceLanguage: 'en');
   TranslationModel _detected = TranslationModel(
-      translatedText: '', detectedSourceLanguage: '');
+      translatedText: 'ru', detectedSourceLanguage: 'ru');
 
   //audio button
   late AnimationController _animationController;
@@ -106,7 +106,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         .size;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Translate demo'),
+        title: Text('TRANSLATE'),
       ),
       body: Column(
         children: [
@@ -153,7 +153,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   {
     return SizedBox(
       width: screenSize.width,
-      height: screenSize.height/3,
+      height: screenSize.height/4,
       child: Column(
           children :
          [
@@ -164,12 +164,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     );
   }
   Widget _translateFrame_after() {
-    return SizedBox(
-      width: screenSize.width,
-      height: screenSize.height/3,
-      child: Text(_translated.translatedText,
-        style: TextStyle(color: Colors.blueAccent),
-        textAlign: TextAlign.start,),
+    return Padding(
+      padding: EdgeInsets.all(20),
+      child: SizedBox(
+        width: screenSize.width,
+        height: screenSize.height/4,
+        child: Text(_translated.translatedText,
+          style: TextStyle(color: Colors.black, fontSize: 20),
+          textAlign: TextAlign.start,
+        ),
+      ),
     );
   }
   _textTranslate(String str) async
@@ -205,7 +209,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   Widget _recognizedText() {
     return Padding(
       padding: const EdgeInsets.all(20.0),
-      child: Align(alignment : Alignment.centerLeft, child : Text('$_lastWords')),
+      child: Align(alignment : Alignment.centerLeft, child : Text('$_lastWords', style: TextStyle(fontSize: 20),)),
     );
   }
   Widget _speechDescText() {
