@@ -38,10 +38,6 @@ dependencies:
   app_settings: ^4.2.0
   flutter_blue_elves: ^0.1.9
 
-
-
-
-
   flutter:
     sdk: flutter
 
