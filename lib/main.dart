@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:translate/bluetooth_submit.dart';
 
 import 'main_screen.dart';
 
