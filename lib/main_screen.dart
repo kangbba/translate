@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:dropdown_button2/custom_dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,57 +39,14 @@ class _MainScreenState extends State<MainScreen> {
   String? selectedValue_after;
   final TextEditingController textEditingController = TextEditingController();
 
-  /// This has to happen only once per app
-  void _initSpeech() async {
-    _speechEnabled = await _speechToText.initialize();
-    setState(() {});
-  }
-
-  /// Each time to start a speech recognition session
-  void _startListening() async {
-    await _speechToText.listen(onResult: _onSpeechResult);
-    _lastWords = '';
-    _lastTranslatedWords = '';
-    setState(() {
-    });
-  }
-
-  /// Manually stop the active speech recognition session
-  /// Note that there are also timeouts that each platform enforces
-  /// and the SpeechToText plugin supports setting timeouts on the
-  /// listen method.
-  void _stopListening() async {
-    await _speechToText.stop();
-    setState(() {
-      print("stop listening");
-    });
-  }
-
-  /// This is the callback that the SpeechToText plugin calls when
-  /// the platform returns recognized words.
-  void _onSpeechResult(SpeechRecognitionResult result) async{
-    _lastWords = result.recognizedWords;
-    await _textTranslate(context, _lastWords);
-    setState(() {
-    });
-  }
-
-  Future<void> _textTranslate(BuildContext context, String str) async
-  {
-    LanguageItems languageItems = LanguageItems();
-    LanguageData? languageDataSourceBefore = languageItems.getLanguageData(selectedValue_before!);
-    LanguageData? languageDataSourceAfter = languageItems.getLanguageData(selectedValue_after!);
-    if(languageDataSourceBefore == null || languageDataSourceAfter == null)
-    {
-      throw("도착 언어가 선택되지 않음");
-    }
-    String translatedStr = await _translate(_lastWords, languageDataSourceBefore.languageCode , languageDataSourceAfter.languageCode);
-    _lastTranslatedWords = translatedStr;
-  }
+  LanguageItems languageItems = LanguageItems();
 
 
   @override
   void initState() {
+    List<String> languageNames = languageItems.getLanguageNames();
+    selectedValue_before = languageNames.first;
+    selectedValue_after = languageNames[2];
     _initSpeech();
     super.initState();
   }
@@ -105,7 +63,6 @@ class _MainScreenState extends State<MainScreen> {
     screenSize = MediaQuery
         .of(context)
         .size;
-    LanguageItems languageItems =LanguageItems();
     List<String> languageNames = languageItems.getLanguageNames();
     return Scaffold(
       appBar: AppBar(
@@ -118,7 +75,7 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 _dropDownMenu_before(languageNames),
                 Icon(Icons.switch_right_rounded),
-                _dropDownMenu_after(languageNames),
+                _dropDownMenu_after( languageNames),
               ]
             ),
             Column(
@@ -269,32 +226,116 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _dropDownMenu_before(List<String> items)
   {
-
-    return CustomDropdownButton2(
-      hint: '출발 언어 선택',
-      dropdownItems: items,
-      value: selectedValue_before,
-      onChanged: (value) {
-        setState(() {
-          selectedValue_before = value;
-        });
-      },
+    return SizedBox(
+      child: DropdownButton<String>(
+        focusNode: FocusNode(descendantsAreFocusable: false),
+        value: selectedValue_before,
+        icon: const Icon(Icons.arrow_downward, size: 15,),
+        elevation: 16,
+        alignment: Alignment.center,
+        style: const TextStyle(color: Colors.indigo, fontSize: 13),
+        underline: Container(
+          height: 1,
+          color: Colors.indigoAccent,
+        ),
+        onChanged: (String? value) {
+          // This is called when the user selects an item.
+          setState(() {
+            selectedValue_before = value!;
+          });
+        },
+        items: items.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(
+            value: value,
+            child: Text(value),
+          );
+        }).toList(),
+      ),
     );
   }
-  Widget _dropDownMenu_after(List<String> items)
+  Widget _dropDownMenu_after(List<String> items) {
+    return SizedBox(
+      child: DropdownButton<String>(
+        focusNode: FocusNode(descendantsAreFocusable: false),
+        value: selectedValue_after,
+        icon: const Icon(Icons.arrow_downward, size: 15,),
+        elevation: 16,
+        alignment: Alignment.center,
+        style: const TextStyle(color: Colors.indigo, fontSize: 13),
+        underline: Container(
+          height: 1,
+          color: Colors.indigoAccent,
+        ),
+        onChanged: (String? value) {
+          // This is called when the user selects an item.
+          setState(() {
+            selectedValue_after = value!;
+          });
+        },
+        items: items.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(
+            value: value,
+            child: Text(value),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// This has to happen only once per app
+  void _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize();
+    setState(() {});
+  }
+
+  /// Each time to start a speech recognition session
+  void _startListening() async {
+    await _speechToText.listen(onResult: _onSpeechResult);
+    _lastWords = '';
+    _lastTranslatedWords = '';
+
+
+    setState(() {
+    });
+  }
+
+  /// Manually stop the active speech recognition session
+  /// Note that there are also timeouts that each platform enforces
+  /// and the SpeechToText plugin supports setting timeouts on the
+  /// listen method.
+  void _stopListening() async {
+    await _speechToText.stop();
+    if(!Platform.isAndroid) {
+      await _textTranslate(context, _lastWords);
+    }
+    setState(() {
+      print("stop listening");
+    });
+  }
+
+  /// This is the callback that the SpeechToText plugin calls when
+  /// the platform returns recognized words.
+  void _onSpeechResult(SpeechRecognitionResult result) async{
+    _lastWords = result.recognizedWords;
+    if(Platform.isAndroid) {
+      await _textTranslate(context, _lastWords);
+    }
+    setState(() {
+    });
+  }
+
+  Future<void> _textTranslate(BuildContext context, String str) async
   {
-    return CustomDropdownButton2(
-      hint: '도착 언어 선택',
-      dropdownItems: items,
-      value: selectedValue_after,
-      onChanged: (value) {
-        setState(() {
-          selectedValue_after = value;
-        });
-      },
-    );
+    LanguageItems languageItems = LanguageItems();
+    LanguageData? languageDataSourceBefore = languageItems.getLanguageData(selectedValue_before!);
+    LanguageData? languageDataSourceAfter = languageItems.getLanguageData(selectedValue_after!);
+    if(languageDataSourceBefore == null || languageDataSourceAfter == null)
+    {
+      throw("도착 언어가 선택되지 않음");
+    }
+    String translatedStr = await _translate(_lastWords, languageDataSourceBefore.languageCode , languageDataSourceAfter.languageCode);
+    _lastTranslatedWords = translatedStr;
   }
-
 }
 
 
