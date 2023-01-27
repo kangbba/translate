@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:app_settings/app_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -354,7 +355,22 @@ class _MainScreenState extends State<MainScreen> {
     if(await checkIfPermisionGranted(context))
     {
       print("어디서에러2");
-      Navigator.of(context).push(MaterialPageRoute(builder: (context)=> BluetoothSubmit()));
+      Navigator.of(context).push(MaterialPageRoute(builder: (context)
+      {
+        return MaterialApp(
+          color: Colors.lightBlue,
+          home: StreamBuilder<BluetoothState>(
+              stream: FlutterBluePlus.instance.state,
+              initialData: BluetoothState.unknown,
+              builder: (c, snapshot) {
+                final state = snapshot.data;
+                if (state == BluetoothState.on) {
+                  return const FindDevicesScreen();
+                }
+                return BluetoothOffScreen(state: state);
+              }),
+        );
+      }));
       print("어디서에러3");
     }
     else{
