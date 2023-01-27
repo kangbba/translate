@@ -8,10 +8,13 @@ class BluetoothSubmit extends StatefulWidget {
 }
 
 class _BluetoothSubmitState extends State<BluetoothSubmit> {
+
   @override
   Widget build(BuildContext context) {
-    return Container(color: Colors.cyan,);
-
+    return Container(color: Colors.blue,);
 
   }
 }
+
+
+
