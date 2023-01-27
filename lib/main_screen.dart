@@ -202,6 +202,8 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+
+
   Future<String> _translate(String content, String sourceCode, String targetCode) async {
     String _client_id = apiKey;
     String _client_secret = apiSecret;
@@ -377,6 +379,8 @@ class _MainScreenState extends State<MainScreen> {
   {
     print("어디서에러6");
     Map<Permission, PermissionStatus> statuses = await [
+      Permission.microphone,
+      Permission.speech,
       Permission.bluetooth,
       Permission.location,
     ].request();
