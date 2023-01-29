@@ -7,13 +7,18 @@ import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
+import 'package:translate/helpers/ChatPage.dart';
 import 'package:translate/language_data.dart';
 import 'apikeys.dart';
 import 'package:flutter/material.dart';
 
 import 'bluetooth_submit.dart';
+import 'helpers/DiscoveryPage.dart';
 import 'helpers/MainPage.dart';
+import 'helpers/ChatPage.dart';
+import 'helpers/SelectBondedDevicePage.dart';
 import 'language_items.dart';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 
 
 
@@ -81,6 +86,7 @@ class _MainScreenState extends State<MainScreen> {
               title: Text("Information"),
             ),
             InkWell(
+              hoverColor: Colors.grey,
               onTap: (){
                 Navigator.of(context).push(MaterialPageRoute(builder: (context) =>
                   MainPage() ));
@@ -124,6 +130,30 @@ class _MainScreenState extends State<MainScreen> {
                 )
               ],
             ),
+            Column(
+              children: [
+                ListTile(
+                  title: ElevatedButton(
+                      child: const Text('Explore discovered devices'),
+                      onPressed: () async {
+                        final BluetoothDevice? selectedDevice =
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) {
+                              return DiscoveryPage();
+                            },
+                          ),
+                        );
+
+                        if (selectedDevice != null) {
+                          print('Discovery -> selected ' + selectedDevice.address);
+                        } else {
+                          print('Discovery -> no device selected');
+                        }
+                      }),
+                ),
+              ],
+            )
           ]
       ),
       floatingActionButton: audioButton(),
@@ -162,9 +192,40 @@ class _MainScreenState extends State<MainScreen> {
       child: SizedBox(
         width: screenSize.width,
         height: screenSize.height/4,
-        child: Text('$_lastTranslatedWords',
-          style: TextStyle(color: Colors.black, fontSize: 20),
-          textAlign: TextAlign.start,
+        child: Column(
+          children: [
+            Text('$_lastTranslatedWords',
+              style: TextStyle(color: Colors.black, fontSize: 20),
+              textAlign: TextAlign.start,
+            ),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: ElevatedButton(
+                child: Icon(Icons.send),
+                onPressed: () async{
+                  final BluetoothDevice? selectedDevice =
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) {
+                        return SelectBondedDevicePage(checkAvailability: false);
+                      },
+                    ),
+                  );
+                  if (selectedDevice != null) {
+                    print('Connect -> selected ' + selectedDevice.address);
+                    Navigator.of(context).pop(
+                      MaterialPageRoute(
+                        builder: (context) {
+                          return ChatPage(server: selectedDevice,);
+                        },
+                      ),
+                    );
+                  } else {
+                    print('Connect -> no device selected');
+                  }
+                },
+              ))
+          ],
         ),
       ),
     );
@@ -418,6 +479,8 @@ class _MainScreenState extends State<MainScreen> {
     print(permitted);
     return permitted;
   }
+
+
 }
 
 
