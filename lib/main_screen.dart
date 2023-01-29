@@ -12,6 +12,7 @@ import 'apikeys.dart';
 import 'package:flutter/material.dart';
 
 import 'bluetooth_submit.dart';
+import 'helpers/MainPage.dart';
 import 'language_items.dart';
 
 
@@ -70,6 +71,33 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('TRANSLATE'),
+      ),
+      endDrawer: Drawer(
+        width: screenSize.width / 1.7,
+        child: ListView(
+          children: [
+            ListTile(
+              leading:Icon(Icons.info_outline_rounded),
+              title: Text("Information"),
+            ),
+            InkWell(
+              onTap: (){
+                Navigator.of(context).push(MaterialPageRoute(builder: (context) =>
+                  MainPage() ));
+              },
+              child: ListTile(
+                leading:Icon(Icons.settings_bluetooth_sharp),
+                title: Text("Bluetooth Setting"),
+              ),
+            ),
+            ListTile(
+              leading:Icon(Icons.settings),
+              title: Text("Settings"),
+            ),
+          ],
+        )
+        //elevation: 20.0,
+        //semanticLabel: 'endDrawer',
       ),
       body: Column(
           children: [
@@ -350,15 +378,13 @@ class _MainScreenState extends State<MainScreen> {
 
   _openBluetoothScreen() async {
 
-    print("어디서에러1");
     if(await checkIfPermisionGranted(context))
     {
-      print("어디서에러2");
-      Navigator.of(context).push(MaterialPageRoute(builder: (context)=> BluetoothSubmit()));
-      print("어디서에러3");
+      Navigator.of(context).push(MaterialPageRoute(builder: (context) {
+        return MainPage();
+      }));
     }
     else{
-      print("어디서에러4");
       SnackBar snackBar = SnackBar(
         content: Text('권한 허용 해주셔야 사용 가능합니다.'), //snack bar의 내용. icon, button같은것도 가능하다.
         action: SnackBarAction( //추가로 작업을 넣기. 버튼넣기라 생각하면 편하다.
@@ -372,19 +398,16 @@ class _MainScreenState extends State<MainScreen> {
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
     }
 
-    print("어디서에러5");
   }
 
   Future<bool> checkIfPermisionGranted(BuildContext context) async
   {
-    print("어디서에러6");
     Map<Permission, PermissionStatus> statuses = await [
       Permission.microphone,
       Permission.speech,
       Permission.bluetooth,
       Permission.location,
     ].request();
-    print("어디서에러7");
     bool permitted = true;
     statuses.forEach((permission, permissionStatus){
       if(!permissionStatus.isGranted){
