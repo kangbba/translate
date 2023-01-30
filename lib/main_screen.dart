@@ -474,6 +474,7 @@ class _MainScreenState extends State<MainScreen> {
       Permission.bluetoothScan,
       Permission.bluetoothAdvertise,
       Permission.location,
+      Permission.locationAlways
     ].request();
     bool permitted = true;
     statuses.forEach((permission, permissionStatus){
@@ -546,6 +547,22 @@ class _MainScreenState extends State<MainScreen> {
     return SizedBox(
       child: ElevatedButton(
           onPressed: () async {
+            if(await checkIfPermisionGranted())
+            {
+            }
+            else{
+              SnackBar snackBar = SnackBar(
+                content: Text('권한 허용 해주셔야 사용 가능합니다.'), //snack bar의 내용. icon, button같은것도 가능하다.
+                action: SnackBarAction( //추가로 작업을 넣기. 버튼넣기라 생각하면 편하다.
+                  label: 'OK', //버튼이름
+                  onPressed: (){
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    AppSettings.openAppSettings();
+                  }, //버튼 눌렀을때.
+                ),
+              );
+              ScaffoldMessenger.of(context).showSnackBar(snackBar);
+            }
             final BluetoothDevice? selectedDevice =
             await Navigator.of(context).push(
               MaterialPageRoute(
