@@ -23,8 +23,10 @@ import 'language_data.dart';
 * */
 final List<LanguageData> languageItems = [
   LanguageData("한국어", "ko", "ko_KR", 1, null),
-  LanguageData("일본어", "ja", "ja_JP", 2, null),
   LanguageData("영어", "en", "en_US", 0, null),
+  LanguageData("중국어 간체", "zh-CN", "cmn_CN", 11, null),
+  LanguageData("중국어 번체", "zh-TW", "cmn_TW", 12, null),
+  LanguageData("일본어", "ja", "ja_JP", 2, null),
   LanguageData("스페인어", "es", "es_ES", 3, null),
   LanguageData("프랑스어", "fr", "fr_FR", 4, null),
   LanguageData("독일어", "de", "de_DE", 5, null),
@@ -32,10 +34,8 @@ final List<LanguageData> languageItems = [
   LanguageData("이탈리아어", "it", "it_IT", 7, null),
   LanguageData("베트남어", "vi", "vi_VN", 8, null),
   LanguageData("태국어", "th", "th_TH", 9, null),
-  LanguageData("러시아어", "ru", "ru_RU", 10, null)
+  LanguageData("러시아어", "ru", "ru_RU", 10, null),
 ];
-// LanguageData("중국어 간체", "zh-CN", "en_US", 3, null),
-// LanguageData("중국어 번체", "zh-TW", "en_US", 4, null),
 //new LanguageData("인도네시아어", "id", null),
 //  new LanguageData("페르시아어", "fa", null),
 // new LanguageData("아랍어", "ar", null),

@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:app_settings/app_settings.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
@@ -554,10 +555,11 @@ class _MainScreenState extends State<MainScreen> {
               if (selectedDevice != null) {
                 print('Connect -> selected ' + selectedDevice.address);
                 currentBluetoothDevice = selectedDevice;
-              } else {
+                bluetoothDeviceConnect(selectedDevice!);
+              }
+              else {
                 print('Connect -> no device selected');
               }
-              bluetoothDeviceConnect(selectedDevice!);
             });
           },
           child: Icon(Icons.bluetooth_searching)
@@ -579,7 +581,7 @@ class _MainScreenState extends State<MainScreen> {
       });
 
       connection!.input!.listen(_onDataReceived).onDone(() {
-        // Example: Detect which side closed the connection
+        // Example: Detect which side closed the connectionflu
         // There should be `isDisconnecting` flag to show are we are (locally)
         // in middle of disconnecting process, should be set before calling
         // `dispose`, `finish` or `close`, which all causes to disconnect.
@@ -591,7 +593,11 @@ class _MainScreenState extends State<MainScreen> {
           print('Disconnected remotely!');
         }
         if (this.mounted) {
-          setState(() {deviceConnectTrying = false;});
+          setState(() {
+            deviceConnectTrying = false;
+
+          });
+
         }
       });
     }).catchError((error) {
