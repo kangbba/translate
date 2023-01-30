@@ -470,6 +470,9 @@ class _MainScreenState extends State<MainScreen> {
       Permission.microphone,
       Permission.speech,
       Permission.bluetooth,
+      Permission.bluetoothConnect,
+      Permission.bluetoothScan,
+      Permission.bluetoothAdvertise,
       Permission.location,
     ].request();
     bool permitted = true;
