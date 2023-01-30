@@ -5,11 +5,13 @@ import 'package:app_settings/app_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:translate/language_data.dart';
 import 'apikeys.dart';
 import 'package:flutter/material.dart';
@@ -37,10 +39,15 @@ class _Message {
 
 class _MainScreenState extends State<MainScreen> {
 
+
+  //Bluetooth and devices
   static final clientID = 0;
+  late List<LocaleName> _speechToTextLocales;
   BluetoothDevice? currentBluetoothDevice;
   BluetoothConnection? connection;
   bool isConnecting = true;
+  bool deviceConnectTrying = false;
+
   bool get isConnected => (connection?.isConnected ?? false);
   bool isDisconnecting = false;
 
@@ -52,14 +59,17 @@ class _MainScreenState extends State<MainScreen> {
   //Translate
 
   //SpeechToText
+  late LocaleName currentLocaleName;
   SpeechToText _speechToText = SpeechToText();
+  LocaleName? defaultLocaleName;
   bool _speechEnabled = false;
-  String _lastWords = '';
+  String _lastSourceWords = '';
   String _lastTranslatedWords = '';
+  LanguageData? _lastTranslatedLanguageData ;
 
   //dropdown menu
-  String? selectedValue_before;
-  String? selectedValue_after;
+  String? currentSourceLanguageName;
+  String? currentTargetLanguageName;
   final TextEditingController translateTextEditingController = TextEditingController();
 
   LanguageItems languageItems = LanguageItems();
@@ -68,8 +78,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     List<String> languageNames = languageItems.getLanguageNames();
-    selectedValue_before = languageNames.first;
-    selectedValue_after = languageNames[2];
+    currentSourceLanguageName = languageNames.first;
+    currentTargetLanguageName = languageNames[2];
     _initSpeech();
     super.initState();
   }
@@ -79,11 +89,7 @@ class _MainScreenState extends State<MainScreen> {
     // TODO: implement dispose
     translateTextEditingController.dispose();
 
-    if (isConnected) {
-      isDisconnecting = true;
-      connection?.dispose();
-      connection = null;
-    }
+    _disposeDeviceConnect();
 
     super.dispose();
   }
@@ -139,9 +145,9 @@ class _MainScreenState extends State<MainScreen> {
             Column(
               children: [
                 _divider(screenSize.width, 1, 0, 0),
-                _translateFrame_before(140),
+                _translateFrame_source(140),
                 _divider(screenSize.width, 1, 0, 0),
-                _translateFrame_after(100),
+                _translateFrame_target(100),
                 _divider(screenSize.width, 1, 0, 0),
                 _sendMessageButton(),
               ],
@@ -190,26 +196,20 @@ class _MainScreenState extends State<MainScreen> {
         alignment: Alignment.centerRight,
         child: ElevatedButton(
             style: commonButtonStyle(6, 6),
-            child: Icon(Icons.send, size: 20,),
-            onPressed: () async {
-              _sendMessage(_lastTranslatedWords);
+            child:  deviceConnectTrying ?
+            LoadingAnimationWidget.threeArchedCircle(color: Colors.indigoAccent, size: 20
+            ) : Icon(Icons.send, size: 20,),
+            onPressed: !isConnected? null : () async {
+              int LCStr = _lastTranslatedLanguageData!.arduinoUniqueId;
+              _sendMessage("${LCStr}:$_lastTranslatedWords");
             }
         ),
       ),
     );
   }
-  ElevatedButton _translateBtn() {
-    return ElevatedButton(
-            onPressed: () {
-              _textTranslate(context, _lastWords);
-            },
-
-            child: Text("번역")
-        );
-  }
 
 
-  Widget _translateFrame_before(double height)
+  Widget _translateFrame_source(double height)
   {
     return SizedBox(
       width: screenSize.width,
@@ -223,7 +223,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
-  Widget _translateFrame_after(double height) {
+  Widget _translateFrame_target(double height) {
     return Padding(
       padding: EdgeInsets.all(20),
       child: SizedBox(
@@ -273,7 +273,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _recognizedText() {
     return Padding(
       padding: const EdgeInsets.all(20.0),
-      child: Align(alignment : Alignment.centerLeft, child : Text('$_lastWords', style: TextStyle(fontSize: 20),)),
+      child: Align(alignment : Alignment.centerLeft, child : Text('$_lastSourceWords', style: TextStyle(fontSize: 20),)),
     );
   }
 
@@ -341,7 +341,7 @@ class _MainScreenState extends State<MainScreen> {
     return SizedBox(
       child: DropdownButton<String>(
         focusNode: FocusNode(descendantsAreFocusable: false),
-        value: selectedValue_before,
+        value: currentSourceLanguageName,
         icon: const Icon(Icons.arrow_downward, size: 15,),
         elevation: 16,
         alignment: Alignment.center,
@@ -352,8 +352,16 @@ class _MainScreenState extends State<MainScreen> {
         ),
         onChanged: (String? value) {
           // This is called when the user selects an item.
-          setState(() {
-            selectedValue_before = value!;
+          setState((){
+            currentSourceLanguageName = value!;
+
+            LanguageData? currentLanguageData = LanguageItems().getLanguageDataByName(currentSourceLanguageName);
+
+            LocaleName foundLocaleName = getLocaleNameFromList(currentLanguageData!.speechLocaleId);
+            print("${currentLanguageData!.speechLocaleId} 로 조회하겠음 총 지원가능 기기 수 : ${_speechToTextLocales.length}");
+            print(foundLocaleName.name + "/" + foundLocaleName!.localeId + "/" + currentLanguageData!.speechLocaleId) ;
+
+            currentLocaleName = foundLocaleName;
           });
         },
         items: items.map<DropdownMenuItem<String>>((String value) {
@@ -369,7 +377,7 @@ class _MainScreenState extends State<MainScreen> {
     return SizedBox(
       child: DropdownButton<String>(
         focusNode: FocusNode(descendantsAreFocusable: false),
-        value: selectedValue_after,
+        value: currentTargetLanguageName,
         icon: const Icon(Icons.arrow_downward, size: 15,),
         elevation: 16,
         alignment: Alignment.center,
@@ -381,7 +389,7 @@ class _MainScreenState extends State<MainScreen> {
         onChanged: (String? value) {
           // This is called when the user selects an item.
           setState(() {
-            selectedValue_after = value!;
+            currentTargetLanguageName = value!;
           });
         },
         items: items.map<DropdownMenuItem<String>>((String value) {
@@ -397,13 +405,16 @@ class _MainScreenState extends State<MainScreen> {
   /// This has to happen only once per app
   void _initSpeech() async {
     _speechEnabled = await _speechToText.initialize();
+    _speechToTextLocales = await _speechToText.locales();
+    defaultLocaleName = await _speechToText.systemLocale();
+    currentLocaleName = defaultLocaleName!;
     setState(() {});
   }
 
   /// Each time to start a speech recognition session
   void _startListening() async {
-    await _speechToText.listen(onResult: _onSpeechResult);
-    _lastWords = '';
+    await _speechToText.listen(localeId: currentLocaleName.localeId, onResult: _onSpeechResult);
+    _lastSourceWords = '';
     _lastTranslatedWords = '';
 
 
@@ -418,7 +429,7 @@ class _MainScreenState extends State<MainScreen> {
   void _stopListening() async {
     await _speechToText.stop();
     if(!Platform.isAndroid) {
-      await _textTranslate(context, _lastWords);
+      await _textTranslate(_lastSourceWords, currentSourceLanguageName, currentTargetLanguageName);
     }
     setState(() {
       print("stop listening");
@@ -428,25 +439,27 @@ class _MainScreenState extends State<MainScreen> {
   /// This is the callback that the SpeechToText plugin calls when
   /// the platform returns recognized words.
   void _onSpeechResult(SpeechRecognitionResult result) async{
-    _lastWords = result.recognizedWords;
+    _lastSourceWords = result.recognizedWords;
     if(Platform.isAndroid) {
-      await _textTranslate(context, _lastWords);
+      await _textTranslate(_lastSourceWords, currentSourceLanguageName, currentTargetLanguageName);
     }
     setState(() {
     });
   }
 
-  Future<void> _textTranslate(BuildContext context, String str) async
+
+  Future<void> _textTranslate(String str, String? sourceLanguageName, String? targetLanguageName) async
   {
     LanguageItems languageItems = LanguageItems();
-    LanguageData? languageDataSourceBefore = languageItems.getLanguageData(selectedValue_before!);
-    LanguageData? languageDataSourceAfter = languageItems.getLanguageData(selectedValue_after!);
+    LanguageData? languageDataSourceBefore = languageItems.getLanguageDataByName(sourceLanguageName);
+    LanguageData? languageDataSourceAfter = languageItems.getLanguageDataByName(targetLanguageName);
     if(languageDataSourceBefore == null || languageDataSourceAfter == null)
     {
       throw("도착 언어가 선택되지 않음");
     }
-    String translatedStr = await _translate(_lastWords, languageDataSourceBefore.languageCode , languageDataSourceAfter.languageCode);
+    String translatedStr = await _translate(_lastSourceWords, languageDataSourceBefore.languageCode , languageDataSourceAfter.languageCode);
     _lastTranslatedWords = translatedStr;
+    _lastTranslatedLanguageData = languageDataSourceAfter;
   }
 
 
@@ -519,7 +532,7 @@ class _MainScreenState extends State<MainScreen> {
                 print('Discovery -> no device selected');
               }
             },
-            child: Icon(Icons.device_unknown_sharp)
+            child: Icon(Icons.find_in_page_outlined)
         )
     );
   }
@@ -547,17 +560,20 @@ class _MainScreenState extends State<MainScreen> {
               bluetoothDeviceConnect(selectedDevice!);
             });
           },
-          child: Icon(Icons.connected_tv)
+          child: Icon(Icons.bluetooth_searching)
       ),
     );
   }
 
   bluetoothDeviceConnect(BluetoothDevice bluetoothDevice)
   {
+    _disposeDeviceConnect();
+    setState(() {deviceConnectTrying = true;});
     BluetoothConnection.toAddress(bluetoothDevice.address).then((_connection) {
       print('Connected to the device');
       connection = _connection;
       setState(() {
+        deviceConnectTrying = false;
         isConnecting = false;
         isDisconnecting = false;
       });
@@ -575,7 +591,7 @@ class _MainScreenState extends State<MainScreen> {
           print('Disconnected remotely!');
         }
         if (this.mounted) {
-          setState(() {});
+          setState(() {deviceConnectTrying = false;});
         }
       });
     }).catchError((error) {
@@ -633,5 +649,27 @@ class _MainScreenState extends State<MainScreen> {
       }
     }
   }
+
+  void _disposeDeviceConnect() {
+    if (isConnected) {
+      currentBluetoothDevice = null;
+      isDisconnecting = true;
+      connection?.dispose();
+      connection = null;
+    }
+  }
+
+  LocaleName getLocaleNameFromList(String localeId)
+  {
+    for(int i = 0 ; i < _speechToTextLocales.length ; i++)
+    {
+      if(_speechToTextLocales[i].localeId.trim() == localeId.trim())
+      {
+        return _speechToTextLocales[i];
+      }
+    }
+    return defaultLocaleName!;
+  }
+
 }
 
