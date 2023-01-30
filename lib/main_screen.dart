@@ -1,25 +1,23 @@
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:app_settings/app_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
-import 'package:translate/helpers/ChatPage.dart';
 import 'package:translate/language_data.dart';
 import 'apikeys.dart';
 import 'package:flutter/material.dart';
-
-import 'bluetooth_submit.dart';
+import 'helpers/ChatPage.dart';
 import 'helpers/DiscoveryPage.dart';
 import 'helpers/MainPage.dart';
-import 'helpers/ChatPage.dart';
 import 'helpers/SelectBondedDevicePage.dart';
 import 'language_items.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 
 
 
@@ -39,19 +37,19 @@ class _Message {
 
 class _MainScreenState extends State<MainScreen> {
 
-  List<_Message> messages = List<_Message>.empty(growable: true);
-  String _messageBuffer = '';
   static final clientID = 0;
+  BluetoothDevice? currentBluetoothDevice;
   BluetoothConnection? connection;
   bool isConnecting = true;
-  bool isDisconnecting = false;
   bool get isConnected => (connection?.isConnected ?? false);
+  bool isDisconnecting = false;
 
+  List<_Message> messages = List<_Message>.empty(growable: true);
+  String _messageBuffer = '';
 
+  //
   late Size screenSize;
   //Translate
-
-  String _coachingLevel = 'Education Level';
 
   //SpeechToText
   SpeechToText _speechToText = SpeechToText();
@@ -62,7 +60,7 @@ class _MainScreenState extends State<MainScreen> {
   //dropdown menu
   String? selectedValue_before;
   String? selectedValue_after;
-  final TextEditingController textEditingController = TextEditingController();
+  final TextEditingController translateTextEditingController = TextEditingController();
 
   LanguageItems languageItems = LanguageItems();
 
@@ -79,7 +77,14 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     // TODO: implement dispose
-    textEditingController.dispose();
+    translateTextEditingController.dispose();
+
+    if (isConnected) {
+      isDisconnecting = true;
+      connection?.dispose();
+      connection = null;
+    }
+
     super.dispose();
   }
   @override
@@ -134,36 +139,25 @@ class _MainScreenState extends State<MainScreen> {
             Column(
               children: [
                 _divider(screenSize.width, 1, 0, 0),
-                _translateFrame_before(),
+                _translateFrame_before(140),
                 _divider(screenSize.width, 1, 0, 0),
-                _translateFrame_after(),
+                _translateFrame_after(100),
                 _divider(screenSize.width, 1, 0, 0),
+                _sendMessageButton(),
               ],
             ),
-            Column(
-              children: [
-                ListTile(
-                  title: ElevatedButton(
-                      child: const Text('Explore discovered devices'),
-                      onPressed: () async {
-                        final BluetoothDevice? selectedDevice =
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) {
-                              return DiscoveryPage();
-                            },
-                          ),
-                        );
-
-                        if (selectedDevice != null) {
-                          print('Discovery -> selected ' + selectedDevice.address);
-                        } else {
-                          print('Discovery -> no device selected');
-                        }
-                      }),
-                ),
-              ],
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 30),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  findDeviceButton(),
+                  connectDeviceButton(),
+                  connectDeviceInfo(),
+                ]
+              ),
             )
+
           ]
       ),
       floatingActionButton: audioButton(),
@@ -171,6 +165,39 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  SizedBox connectDeviceInfo() {
+    return SizedBox(
+      child: Column(
+          children :
+          [
+            Row(
+                children: [
+                  Text("연결상태 ", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),),
+                  Icon(Icons.circle, color: isConnected ? Colors.lightGreenAccent : Colors.red, size: 14,)
+                ]
+            ),
+            Text('${currentBluetoothDevice?.name}', style: TextStyle(fontSize: 12),)
+          ]
+      ),
+    );
+  }
+
+  _sendMessageButton()
+  {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 10),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: ElevatedButton(
+            style: commonButtonStyle(6, 6),
+            child: Icon(Icons.send, size: 20,),
+            onPressed: () async {
+              _sendMessage(_lastTranslatedWords);
+            }
+        ),
+      ),
+    );
+  }
   ElevatedButton _translateBtn() {
     return ElevatedButton(
             onPressed: () {
@@ -182,69 +209,42 @@ class _MainScreenState extends State<MainScreen> {
   }
 
 
-  Widget _translateFrame_before()
+  Widget _translateFrame_before(double height)
   {
     return SizedBox(
       width: screenSize.width,
-      height: screenSize.height/4,
+      height: height,
       child: Column(
           children :
          [
            _recognizedText(),
-           _speechDescText(),
+            Text( _speechToText.isListening ? 'Tap the microphone to start listening...' : '', style: TextStyle(color: Colors.redAccent),)
          ]
       ),
     );
   }
-  Widget _translateFrame_after() {
+  Widget _translateFrame_after(double height) {
     return Padding(
       padding: EdgeInsets.all(20),
       child: SizedBox(
         width: screenSize.width,
-        height: screenSize.height/4,
-        child: Column(
-          children: [
-            Text('$_lastTranslatedWords',
-              style: TextStyle(color: Colors.black, fontSize: 20),
-              textAlign: TextAlign.start,
-            ),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: ElevatedButton(
-                child: Icon(Icons.send),
-                onPressed: () async {
-                  if(await checkIfPermisionGranted(context))
-                  {
-                    final BluetoothDevice? selectedDevice =
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) {
-                          return SelectBondedDevicePage(checkAvailability: false);
-                        },
-                      ),
-                    );
-                    initializeBluetooth(selectedDevice);
-                    await sendingMessage(selectedDevice, _lastTranslatedWords);
-                  }
-                  else{
-                    SnackBar snackBar = SnackBar(
-                      content: Text('권한 허용 해주셔야 사용 가능합니다.'), //snack bar의 내용. icon, button같은것도 가능하다.
-                      action: SnackBarAction( //추가로 작업을 넣기. 버튼넣기라 생각하면 편하다.
-                        label: 'OK', //버튼이름
-                        onPressed: (){
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          AppSettings.openAppSettings();
-                        }, //버튼 눌렀을때.
-                      ),
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(snackBar);
-                  }
-                }
-              ))
-          ],
+        height: height,
+        child: Text('$_lastTranslatedWords',
+          style: TextStyle(color: Colors.black, fontSize: 20),
+          textAlign: TextAlign.start,
         ),
       ),
     );
+  }
+
+  ButtonStyle commonButtonStyle(double horizontal, double vertical)
+  {
+    return ElevatedButton.styleFrom(
+      backgroundColor: Colors.indigoAccent,
+      padding:
+      EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical),
+      textStyle:
+      const TextStyle(fontSize: 30, fontWeight: FontWeight.bold));
   }
 
   Widget audioButton() {
@@ -276,10 +276,6 @@ class _MainScreenState extends State<MainScreen> {
       child: Align(alignment : Alignment.centerLeft, child : Text('$_lastWords', style: TextStyle(fontSize: 20),)),
     );
   }
-  Widget _speechDescText() {
-    return Text( _speechToText.isListening ? 'Tap the microphone to start listening...' : '', style: TextStyle(color: Colors.redAccent),);
-  }
-
 
   //TRANSLATIONS
   Future<dynamic> getUsedLanguage(String content) async {
@@ -454,7 +450,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
 
-  Future<bool> checkIfPermisionGranted(BuildContext context) async
+  Future<bool> checkIfPermisionGranted() async
   {
     Map<Permission, PermissionStatus> statuses = await [
       Permission.microphone,
@@ -473,77 +469,92 @@ class _MainScreenState extends State<MainScreen> {
     return permitted;
   }
 
-  void _onDataReceived(Uint8List data) {
-    // Allocate buffer for parsed data
-    int backspacesCounter = 0;
-    data.forEach((byte) {
-      if (byte == 8 || byte == 127) {
-        backspacesCounter++;
-      }
-    });
-    Uint8List buffer = Uint8List(data.length - backspacesCounter);
-    int bufferIndex = buffer.length;
 
-    // Apply backspace control character
-    backspacesCounter = 0;
-    for (int i = data.length - 1; i >= 0; i--) {
-      if (data[i] == 8 || data[i] == 127) {
-        backspacesCounter++;
-      } else {
-        if (backspacesCounter > 0) {
-          backspacesCounter--;
-        } else {
-          buffer[--bufferIndex] = data[i];
-        }
-      }
-    }
-
-    // Create message if there is new line character
-    String dataString = String.fromCharCodes(buffer);
-    int index = buffer.indexOf(13);
-    if (~index != 0) {
-      setState(() {
-        messages.add(
-          _Message(
-            1,
-            backspacesCounter > 0
-                ? _messageBuffer.substring(
-                0, _messageBuffer.length - backspacesCounter)
-                : _messageBuffer + dataString.substring(0, index),
-          ),
-        );
-        _messageBuffer = dataString.substring(index);
-      });
-    } else {
-      _messageBuffer = (backspacesCounter > 0
-          ? _messageBuffer.substring(
-          0, _messageBuffer.length - backspacesCounter)
-          : _messageBuffer + dataString);
-    }
-  }
-
-  sendingMessage(BluetoothDevice? selectedDevice, String text) async {
-    text = text.trim();
-    if (text.length > 0) {
-      try {
-        print('111');
-        connection!.output.add(Uint8List.fromList(utf8.encode(text + "\r\n")));
-        await connection!.output.allSent;
-
-        setState(() {
-          print('222');
-          messages.add(_Message(clientID, text));
-        });
-      } catch (e) {
-        // Ignore error, but notify state
-        setState(() {});
-      }
-    }
-  }
-
-  void initializeBluetooth(BluetoothDevice? selectedDevice)
+  simpleSnackbar(BuildContext context, String content)
   {
-    BluetoothConnection.toAddress(selectedDevice!.address).then((_connection) {
+    SnackBar snackBar = SnackBar(
+      content: Text(content), //snack bar의 내용. icon, button같은것도 가능하다.
+      action: SnackBarAction( //추가로 작업을 넣기. 버튼넣기라 생각하면 편하다.
+        label: 'OK', //버튼이름
+        onPressed: (){
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        }, //버튼 눌렀을때.
+      ),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+
+  Widget findDeviceButton()
+  {
+    return SizedBox(
+        child: ElevatedButton(
+            onPressed: () async {
+              if(await checkIfPermisionGranted())
+              {
+              }
+              else{
+                SnackBar snackBar = SnackBar(
+                  content: Text('권한 허용 해주셔야 사용 가능합니다.'), //snack bar의 내용. icon, button같은것도 가능하다.
+                  action: SnackBarAction( //추가로 작업을 넣기. 버튼넣기라 생각하면 편하다.
+                    label: 'OK', //버튼이름
+                    onPressed: (){
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      AppSettings.openAppSettings();
+                    }, //버튼 눌렀을때.
+                  ),
+                );
+                ScaffoldMessenger.of(context).showSnackBar(snackBar);
+              }
+              final BluetoothDevice? selectedDevice =
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) {
+                    return DiscoveryPage();
+                  },
+                ),
+              );
+              if (selectedDevice != null) {
+                print('Discovery -> selected ' + selectedDevice.address);
+              } else {
+                print('Discovery -> no device selected');
+              }
+            },
+            child: Icon(Icons.device_unknown_sharp)
+        )
+    );
+  }
+
+  connectDeviceButton()
+  {
+    return SizedBox(
+      child: ElevatedButton(
+          onPressed: () async {
+            final BluetoothDevice? selectedDevice =
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) {
+                  return SelectBondedDevicePage(checkAvailability: false);
+                },
+              ),
+            );
+            setState(() {
+              if (selectedDevice != null) {
+                print('Connect -> selected ' + selectedDevice.address);
+                currentBluetoothDevice = selectedDevice;
+              } else {
+                print('Connect -> no device selected');
+              }
+              bluetoothDeviceConnect(selectedDevice!);
+            });
+          },
+          child: Icon(Icons.connected_tv)
+      ),
+    );
+  }
+
+  bluetoothDeviceConnect(BluetoothDevice bluetoothDevice)
+  {
+    BluetoothConnection.toAddress(bluetoothDevice.address).then((_connection) {
       print('Connected to the device');
       connection = _connection;
       setState(() {
@@ -571,6 +582,56 @@ class _MainScreenState extends State<MainScreen> {
       print('Cannot connect, exception occured');
       print(error);
     });
+  }
+
+  void _onDataReceived(Uint8List data) {
+    // Allocate buffer for parsed data
+    int backspacesCounter = 0;
+    data.forEach((byte) {
+      if (byte == 8 || byte == 127) {
+        backspacesCounter++;
+      }
+    });
+    Uint8List buffer = Uint8List(data.length - backspacesCounter);
+    int bufferIndex = buffer.length;
+
+    // Apply backspace control character
+    backspacesCounter = 0;
+    for (int i = data.length - 1; i >= 0; i--) {
+      if (data[i] == 8 || data[i] == 127) {
+        backspacesCounter++;
+      } else {
+        if (backspacesCounter > 0) {
+          backspacesCounter--;
+        } else {
+          buffer[--bufferIndex] = data[i];
+        }
+      }
+    }
+  }
+
+
+  void _sendMessage(String text) async {
+    text = text.trim();
+    if (text.length > 0) {
+      try {
+        connection!.output.add(Uint8List.fromList(utf8.encode(text + "\r\n")));
+        await connection!.output.allSent;
+
+        setState(() {
+          messages.add(_Message(clientID, text));
+        });
+        // Future.delayed(Duration(milliseconds: 333)).then((_) {
+        //   listScrollController.animateTo(
+        //       listScrollController.position.maxScrollExtent,
+        //       duration: Duration(milliseconds: 333),
+        //       curve: Curves.easeOut);
+        // });
+      } catch (e) {
+        // Ignore error, but notify state
+        setState(() {});
+      }
+    }
   }
 }
 
