@@ -1,4 +1,5 @@
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:app_settings/app_settings.dart';
@@ -42,6 +43,7 @@ class _MainScreenState extends State<MainScreen> {
 
 
   //Bluetooth and devices
+  List<String> sendingMsgList = [];
   static final clientID = 0;
   late List<LocaleName> _speechToTextLocales;
   BluetoothDevice? currentBluetoothDevice;
@@ -75,19 +77,21 @@ class _MainScreenState extends State<MainScreen> {
 
   LanguageItems languageItems = LanguageItems();
 
+  late Timer periodicSendMessageTimer;
 
   @override
   void initState() {
     List<String> languageNames = languageItems.getLanguageNames();
     currentSourceLanguageName = languageNames.first;
-    currentTargetLanguageName = languageNames[2];
+    currentTargetLanguageName = languageNames[1];
     _initSpeech();
+    startSendMessageTimer();
     super.initState();
   }
 
   @override
   void dispose() {
-    // TODO: implement dispose
+    // TODO: implement disposes
     translateTextEditingController.dispose();
 
     _disposeDeviceConnect();
@@ -201,13 +205,34 @@ class _MainScreenState extends State<MainScreen> {
             LoadingAnimationWidget.threeArchedCircle(color: Colors.indigoAccent, size: 20
             ) : Icon(Icons.send, size: 20,),
             onPressed: !isConnected? null : () async {
-              int LCStr = _lastTranslatedLanguageData!.arduinoUniqueId;
-              _sendMessage("${LCStr}:$_lastTranslatedWords");
+              _sendLastTraslatedWordsToDevice();
             }
         ),
       ),
     );
   }
+
+  _sendLastTraslatedWordsToDevice() async
+  {
+    if(sendingMsgList.isEmpty || _lastTranslatedLanguageData == null || _lastTranslatedWords.isEmpty)
+    {
+      return;
+    }
+    else
+    {
+      if(sendingMsgList.last != recentSentSendingMsg)
+      {
+        await _sendMessage(sendingMsgList.last);
+
+        print("리스트의 마지막 전송 성공 ${sendingMsgList.last}");
+        recentSentSendingMsg = sendingMsgList.last;
+      }
+      else{
+      }
+    }
+  }
+  int duiplicatedSendMsgCount = 0;
+  String recentSentSendingMsg = '';
 
 
   Widget _translateFrame_source(double height)
@@ -328,7 +353,6 @@ class _MainScreenState extends State<MainScreen> {
     if (trans.statusCode == 200) {
       var dataJson = jsonDecode(trans.body);
       String result_papago = dataJson['message']['result']['translatedText'];
-      print(result_papago);
       return result_papago;
     }
     else {
@@ -415,9 +439,10 @@ class _MainScreenState extends State<MainScreen> {
   /// Each time to start a speech recognition session
   void _startListening() async {
     print("_startListening");
-    await _speechToText.listen(localeId: currentLocaleName.localeId, onResult: _onSpeechResult);
+    _disposeMessageList();
     _lastSourceWords = '';
     _lastTranslatedWords = '';
+    await _speechToText.listen(localeId: currentLocaleName.localeId, onResult: _onSpeechResult);
     setState(() {
     });
   }
@@ -437,25 +462,29 @@ class _MainScreenState extends State<MainScreen> {
   /// the platform returns recognized words.
   void _onSpeechResult(SpeechRecognitionResult result) async{
     print("_onSpeechResult");
-    _lastSourceWords = result.recognizedWords;
-    // await _textTranslate(_lastSourceWords, currentSourceLanguageName, currentTargetLanguageName);
+    LanguageItems languageItems = LanguageItems();
+    LanguageData? languageDataSourceBefore = languageItems.getLanguageDataByName(currentSourceLanguageName);
+    LanguageData? languageDataSourceAfter = languageItems.getLanguageDataByName(currentTargetLanguageName);
+    if(languageDataSourceBefore != null && languageDataSourceAfter != null)
+    {
+      _lastSourceWords = result.recognizedWords;
+      _lastTranslatedWords = await _textTranslate(_lastSourceWords, languageDataSourceBefore.languageCode!, languageDataSourceAfter.languageCode!);
+      _lastTranslatedLanguageData = languageDataSourceAfter;
+
+      int arduinoUniqueId = _lastTranslatedLanguageData!.arduinoUniqueId;
+      String fullMsg = "$arduinoUniqueId:$_lastTranslatedWords;";
+      print("${sendingMsgList.length} : $fullMsg");
+      sendingMsgList.add(fullMsg);
+    }
     setState(() {
     });
   }
 
 
-  Future<void> _textTranslate(String str, String? sourceLanguageName, String? targetLanguageName) async
+  Future<String> _textTranslate(String str, String sourceLanguageCode, String targetLanguageCode) async
   {
-    LanguageItems languageItems = LanguageItems();
-    LanguageData? languageDataSourceBefore = languageItems.getLanguageDataByName(sourceLanguageName);
-    LanguageData? languageDataSourceAfter = languageItems.getLanguageDataByName(targetLanguageName);
-    if(languageDataSourceBefore == null || languageDataSourceAfter == null)
-    {
-      throw("도착 언어가 선택되지 않음");
-    }
-    String translatedStr = await _translate(_lastSourceWords, languageDataSourceBefore.languageCode , languageDataSourceAfter.languageCode);
-    _lastTranslatedWords = translatedStr;
-    _lastTranslatedLanguageData = languageDataSourceAfter;
+    String translatedStr = await _translate(_lastSourceWords, sourceLanguageCode, targetLanguageCode);
+    return translatedStr;
   }
 
 
@@ -477,7 +506,6 @@ class _MainScreenState extends State<MainScreen> {
         permitted = false;
       }
     });
-    print("어디서에러8");
     print(permitted);
     return permitted;
   }
@@ -648,7 +676,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
 
-  void _sendMessage(String text) async {
+  _sendMessage(String text) async {
     text = text.trim();
     if (text.length > 0) {
       try {
@@ -692,5 +720,22 @@ class _MainScreenState extends State<MainScreen> {
     return defaultLocaleName!;
   }
 
+  startSendMessageTimer() {
+    periodicSendMessageTimer = Timer.periodic(const Duration(milliseconds: 800), (timer) {
+      if(!isConnected || deviceConnectTrying ) {
+      }
+      else{
+        _sendLastTraslatedWordsToDevice();
+      }
+    });
+  }
+  cancelSendMessageTimer() {
+    periodicSendMessageTimer.cancel();
+  }
+
+  void _disposeMessageList() {
+    sendingMsgList.clear();
+    duiplicatedSendMsgCount = 0;
+  }
 }
 
