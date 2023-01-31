@@ -414,11 +414,10 @@ class _MainScreenState extends State<MainScreen> {
 
   /// Each time to start a speech recognition session
   void _startListening() async {
+    print("_startListening");
     await _speechToText.listen(localeId: currentLocaleName.localeId, onResult: _onSpeechResult);
     _lastSourceWords = '';
     _lastTranslatedWords = '';
-
-
     setState(() {
     });
   }
@@ -428,22 +427,18 @@ class _MainScreenState extends State<MainScreen> {
   /// and the SpeechToText plugin supports setting timeouts on the
   /// listen method.
   void _stopListening() async {
+    print("_stopListening");
     await _speechToText.stop();
-    if(!Platform.isAndroid) {
-      await _textTranslate(_lastSourceWords, currentSourceLanguageName, currentTargetLanguageName);
-    }
     setState(() {
-      print("stop listening");
     });
   }
 
   /// This is the callback that the SpeechToText plugin calls when
   /// the platform returns recognized words.
   void _onSpeechResult(SpeechRecognitionResult result) async{
+    print("_onSpeechResult");
     _lastSourceWords = result.recognizedWords;
-    if(Platform.isAndroid) {
-      await _textTranslate(_lastSourceWords, currentSourceLanguageName, currentTargetLanguageName);
-    }
+    // await _textTranslate(_lastSourceWords, currentSourceLanguageName, currentTargetLanguageName);
     setState(() {
     });
   }
